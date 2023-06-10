@@ -1,0 +1,158 @@
+---
+title: "Get a csv file with all covariates and all response variables"
+output: html_notebook
+---
+
+ 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+# 1. Summary
+
+## 1.1. Covariates
+The covariates include:
+ - date
+ - lake name
+ - lake id
+ - lake monitering measurements, e.g., N, P, water temperature, secchi depth, stratification, 
+ - chloraphle a, b etc, ph
+
+watershed info --separate file
+weather condition -- separate file
+
+## 1.2. Response variables
+
+response varialble
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+# 2. The code
+## 2.1. Get the density and biomass
+input: raw_data/raw_all_species_Phytoplankton_corrected.csv
+output: 
+write.csv(data_density,'output_0_data_density_930.csv')
+write.csv(data_biomass,'output_0_data_biomass_930.csv')
+write.csv(data_biomass,'output_0_data_both_density_and_biomass_930.csv')
+
+```{r}
+## copied and commented by J.X. on 2020-04-10.
+
+## 2019-11-02 J.X.
+
+#_________________________________________________________________________________
+# # PART ONE: steps to get two data sets of 930 rows, with missing data in biomass.
+# 1. import data
+# 2. check duplicates
+# 3. take that duplicate
+# 4. take care of normal ones
+# 5. take care of that duplicate
+# 6. put them together
+
+# PART TWO: save the data set needed with possible missing values
+# density-only data set(no missing actually)
+# biomass-only data set(with missing values)
+#_________________________________________________________________________________
+## PART ONE
+library(magrittr)
+number <- read.csv("raw_data/raw_all_species_Phytoplankton_corrected.csv")
+
+
+# if I replace last column with a sum of all subspecies, then I can get a full data set.
+
+cd<- data.frame(number$Lake.Sample,
+                number$Lake.No,
+                number$Lake.Name,
+                number$Sample.ID,
+                number$Type,
+                number$Measurement,
+                number$CyB_sum)
+# str(cd)
+
+rm(number)
+# rm(list = ls())
+c0<-cd[which(cd$number.Type=='Standard'),]
+rm(cd)
+# str(c0)
+c0%<>%droplevels
+# str(c0)
+## check for duplicates
+n_occur<-data.frame(table(c0$number.Lake.Sample))
+print(dups<-(n_occur[n_occur$Freq > 2,]))
+# dups
+
+c0[which(c0$number.Lake.Sample=='92_1055'),]
+## finish looking for duplicate 
+# there are two samples sent to two labs
+c0his<-c0
+
+# look at unique samples first
+c0<-c0[-which(c0$number.Lake.Sample=='92_1055'),]
+c1a<-c0[which(c0$number.Measurement=='Density'),]
+colnames(c1a)[7]<-"Density"
+# str(c1a)
+c1b<-c0[which(c0$number.Measurement=='Biomass'),]
+colnames(c1b)[7]<-"Biomass"
+# str(c1b)
+
+# summary(c1a)
+# summary(c1b)
+c1a%<>%droplevels # remove level 'biomass' of measurement in c1a (density)
+c1b%<>%droplevels
+# summary(c1a)
+# summary(c1b)
+
+print(head(c0))
+# unique lake sample ID
+lake_sample<-data.frame(number.Lake.Sample=unique(c0$number.Lake.Sample))
+# str(c1a)
+# remove 'number.Type' and 'number.Measurement'
+c2a<- merge(lake_sample,c1a[,c(-6,-5)],by='number.Lake.Sample')# remove type and measurement
+# str(c2a)
+
+# check sample size
+length(unique(c0$number.Lake.Sample))
+length(unique(c1a$number.Lake.Sample)) # 929 -- all density are provided
+length(unique(c1b$number.Lake.Sample)) # 892 -- some biomass are missing
+
+# merge density and biomass together.
+c2b<- merge(c2a,c1b[,c(1,7)],by='number.Lake.Sample',all=TRUE)# remove type and measurement
+# str(c2b)
+
+# the special sample sent to two labs
+l<-c0his[which(c0his$number.Lake.Sample=='92_1055'),c(6,7)] # 2x2
+# mean(l[which(l$number.Measurement=='Biomass'),2])
+
+c2b[1,]
+m<-c0his[which(c0his$number.Lake.Sample=='92_1055'),][1,-c(5,6,7)]
+m
+
+m$Density<-mean(l[which(l$number.Measurement=='Density'),2])
+m
+m$Biomass<-mean(l[which(l$number.Measurement=='Biomass'),2])
+m
+c2b[1,]
+c3<-rbind(c2b,m) # special sample added.
+
+# PART TWO
+data_density<-c3[,-6]
+data_biomass<-c3[,-5]
+# str(data_density)
+# str(data_biomass)
+# summary(data_density)
+# summary(data_biomass)
+
+## save data. Density is complete, but biomass is not. 
+# biomass can be used later for prediction, just like the way we look at the density.
+write.csv(data_density,'output_0_data_density_930.csv')
+write.csv(data_biomass,'output_0_data_biomass_930.csv')
+write.csv(c3,'output_0_data_both_density_and_biomass_930.csv')
+
+rm(c0,c0his,c1a,c1b,c2a,c2b,dups,c3,data_biomass,data_density)
+rm(l,m,lake_sample,n_occur)
+
+```
